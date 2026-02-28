@@ -144,7 +144,7 @@
       "startTime": "18:00",
       "endTime": "19:30",
       "location": "RPAC Courts",
-      "rsvpCount": 119,
+      "rsvpCount": 120,
       "orgId": "u-org-2",
       "orgName": "Rec Sports",
       "tags": [
@@ -191,8 +191,9 @@
   "rsvps": {
     "u-student-1": [
       "e21",
+      "e4",
       "e3",
-      "e4"
+      "e2"
     ]
   }
 }

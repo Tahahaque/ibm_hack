@@ -67,9 +67,12 @@ export function SchedulePage() {
   const { user, scheduleBlocks, parseSchedule, removeScheduleBlock, scheduleParsed, events, isRsvped } = useAppContext()
   const [rawInput, setRawInput] = useState('Paste your schedule here...')
   const [view, setView] = useState<'classes' | 'my'>('classes')
+  const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
+  const [aiStatus, setAiStatus] = useState('')
+  const [askingAi, setAskingAi] = useState(false)
 
   const classStats = useMemo(() => {
-    const uniqueClasses = new Set(scheduleBlocks.map((block) => block.name)).size
+    const classBlocks = scheduleBlocks.length
     const occupiedByDay = classDays.reduce<Record<string, number>>((acc, day) => ({ ...acc, [day]: 0 }), {})
 
     let totalOccupiedMinutes = 0
@@ -87,7 +90,7 @@ export function SchedulePage() {
     const busiestDay = Object.entries(occupiedByDay).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'N/A'
 
     return {
-      uniqueClasses,
+      classBlocks,
       freeHours,
       busiestDay,
     }
@@ -275,7 +278,7 @@ export function SchedulePage() {
       <div className="grid grid-cols-3 gap-2 text-center text-xs">
         <Card className="p-3">
           <p className="text-[11px] text-text-secondary">Classes</p>
-          <p className="mt-1 text-base font-semibold text-scarlet">{classStats.uniqueClasses}</p>
+          <p className="mt-1 text-base font-semibold text-scarlet">{classStats.classBlocks}</p>
         </Card>
         <Card className="p-3">
           <p className="text-[11px] text-text-secondary">Free Hours</p>
@@ -295,17 +298,45 @@ export function SchedulePage() {
         </ul>
         <Button
           className="mt-3 w-full"
-          onClick={() =>
-            askWatsonAboutSchedule({
-              user,
-              scheduleBlocks,
-              events,
-              isRsvped,
-            })
-          }
+          disabled={askingAi}
+          onClick={async () => {
+            if (askingAi) return
+
+            setAskingAi(true)
+            try {
+              const result = await askWatsonAboutSchedule({
+                user,
+                scheduleBlocks,
+                events,
+                isRsvped,
+              })
+              setAiSuggestions(result.suggestions)
+              if (result.sentToChat) {
+                setAiStatus('Opened side chat and added your schedule context automatically.')
+                return
+              }
+
+              if (result.copiedToClipboard) {
+                setAiStatus('Copied schedule context. Paste it in the side chat to continue.')
+                return
+              }
+
+              setAiStatus('Opened side chat. Use one of the suggested prompts below.')
+            } finally {
+              setAskingAi(false)
+            }
+          }}
         >
-          Ask AI about my schedule
+          {askingAi ? 'Opening AI...' : 'Ask AI about my schedule'}
         </Button>
+        {aiStatus ? <p className="mt-2 text-xs text-text-secondary">{aiStatus}</p> : null}
+        {aiSuggestions.length ? (
+          <ul className="mt-2 space-y-1 text-xs text-text-secondary">
+            {aiSuggestions.map((suggestion) => (
+              <li key={suggestion}>• {suggestion}</li>
+            ))}
+          </ul>
+        ) : null}
         <p className="mt-2 text-[11px] text-text-secondary">TODO: Watsonx schedule parser • TODO: Watsonx free-time matching</p>
       </Card>
     </div>
