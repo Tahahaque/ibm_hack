@@ -1,5 +1,6 @@
-import { createContext, useContext, useMemo, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { mockEvents, mockOrgUser, mockRecommendations, mockScheduleBlocks, mockStudentUser } from '@/data/mockData'
+import { createEventRequest, fetchBootstrap, toggleRsvpWithEventRequest, updateUserInterests } from '@/services/api'
 import type { EventItem, RecommendationReason, Role, ScheduleBlock, User } from '@/types'
 
 type AppContextType = {
@@ -35,6 +36,32 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [rsvpEventIds, setRsvpEventIds] = useState<string[]>(['e1', 'e2'])
   const [followingOrgs, setFollowingOrgs] = useState<string[]>(['u-org-1'])
 
+  useEffect(() => {
+    let isMounted = true
+
+    const load = async () => {
+      try {
+        const bootstrap = await fetchBootstrap(mockStudentUser.id)
+        if (!isMounted) return
+
+        setEvents(bootstrap.events.length > 0 ? bootstrap.events : mockEvents)
+
+        if (bootstrap.user) {
+          setUser(bootstrap.user)
+        }
+
+        setRsvpEventIds(bootstrap.rsvpEventIds)
+      } catch {
+      }
+    }
+
+    void load()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
   const login = () => {
     setUser(mockStudentUser)
   }
@@ -48,20 +75,62 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }
 
   const toggleRsvp = (eventId: string) => {
-    setRsvpEventIds((previous) => (previous.includes(eventId) ? previous.filter((id) => id !== eventId) : [...previous, eventId]))
+    setRsvpEventIds((previous) => {
+      const hadRsvp = previous.includes(eventId)
+      const next = hadRsvp ? previous.filter((id) => id !== eventId) : [...previous, eventId]
+
+      setEvents((previousEvents) =>
+        previousEvents.map((item) => {
+          if (item.id !== eventId) return item
+          return {
+            ...item,
+            rsvpCount: hadRsvp ? Math.max(0, item.rsvpCount - 1) : item.rsvpCount + 1,
+          }
+        }),
+      )
+
+      const activeUserId = user?.id
+      if (activeUserId) {
+        void toggleRsvpWithEventRequest(activeUserId, eventId)
+          .then(({ rsvpEventIds, event }) => {
+            setRsvpEventIds(rsvpEventIds)
+            if (event) {
+              setEvents((previousEvents) => previousEvents.map((item) => (item.id === event.id ? event : item)))
+            }
+          })
+          .catch(() => {
+          })
+      }
+      return next
+    })
   }
 
   const createEvent = (event: Omit<EventItem, 'id' | 'rsvpCount'>) => {
-    const created: EventItem = {
+    const localCreated: EventItem = {
       ...event,
-      id: `e-${Date.now()}`,
+      id: `local-${Date.now()}`,
       rsvpCount: 0,
     }
-    setEvents((previous) => [created, ...previous])
+
+    setEvents((previous) => [localCreated, ...previous])
+
+    void createEventRequest(event)
+      .then((savedEvent) => {
+        setEvents((previous) => [savedEvent, ...previous.filter((item) => item.id !== localCreated.id)])
+      })
+      .catch(() => {
+        setEvents((previous) => previous.filter((item) => item.id !== localCreated.id))
+      })
   }
 
   const updateInterests = (interests: string[]) => {
     setUser((previous) => (previous ? { ...previous, interests } : previous))
+
+    const activeUserId = user?.id
+    if (activeUserId) {
+      void updateUserInterests(activeUserId, interests).catch(() => {
+      })
+    }
   }
 
   const parseSchedule = async (_rawText: string) => {

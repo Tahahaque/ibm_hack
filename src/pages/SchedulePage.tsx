@@ -6,6 +6,7 @@ import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
 import { useAppContext } from '@/context/AppContext'
 import { LoadingSkeleton } from '@/components/LoadingSkeleton'
+import { askWatsonAboutSchedule } from '@/services/watsonChat'
 
 const classDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
 const fullWeekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -63,7 +64,7 @@ function normalizeDay(day: string) {
 }
 
 export function SchedulePage() {
-  const { scheduleBlocks, parseSchedule, scheduleParsed, events, isRsvped } = useAppContext()
+  const { user, scheduleBlocks, parseSchedule, scheduleParsed, events, isRsvped } = useAppContext()
   const [rawInput, setRawInput] = useState('Paste your schedule here...')
   const [view, setView] = useState<'classes' | 'my'>('classes')
 
@@ -283,6 +284,19 @@ export function SchedulePage() {
           <li>• Pickup Basketball (Wed 6 PM)</li>
           <li>• Ramen Crawl (Sat 12 PM)</li>
         </ul>
+        <Button
+          className="mt-3 w-full"
+          onClick={() =>
+            askWatsonAboutSchedule({
+              user,
+              scheduleBlocks,
+              events,
+              isRsvped,
+            })
+          }
+        >
+          Ask AI about my schedule
+        </Button>
         <p className="mt-2 text-[11px] text-text-secondary">TODO: Watsonx schedule parser • TODO: Watsonx free-time matching</p>
       </Card>
     </div>

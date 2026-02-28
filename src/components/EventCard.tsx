@@ -1,7 +1,9 @@
 import { Flame, MapPin, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
+import { useAppContext } from '@/context/AppContext'
 import type { EventItem } from '@/types'
 
 type EventCardProps = {
@@ -11,6 +13,7 @@ type EventCardProps = {
 }
 
 export function EventCard({ event, aiReasons, forYou = false }: EventCardProps) {
+  const { toggleRsvp, isRsvped } = useAppContext()
   const isTrending = event.rsvpCount > 100
 
   return (
@@ -44,6 +47,10 @@ export function EventCard({ event, aiReasons, forYou = false }: EventCardProps) 
           </p>
           <p className="text-xs text-text-secondary">3 friends going • 5 CSE majors attending</p>
         </div>
+
+        <Button className="mt-3 w-full" variant={isRsvped(event.id) ? 'success' : 'default'} onClick={() => toggleRsvp(event.id)}>
+          {isRsvped(event.id) ? 'RSVP Confirmed' : 'RSVP'}
+        </Button>
 
         {forYou && aiReasons?.length ? (
           <div className="mt-3 rounded-xl border border-red-100 bg-red-50 p-3 text-sm animate-fadePop">

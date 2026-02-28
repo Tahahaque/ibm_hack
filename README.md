@@ -18,23 +18,44 @@ BuckeyeBoard is a React + TypeScript web app for student event discovery, RSVP p
 npm install
 ```
 
-2. Run the dev server:
+2. Run the backend API server (required for persistent data):
+
+```bash
+npm run dev:api
+```
+
+3. In a second terminal, run the frontend dev server:
 
 ```bash
 npm run dev
 ```
 
-3. Build for production:
+4. Build for production:
 
 ```bash
 npm run build
 ```
 
-4. Preview production build:
+5. Preview production build:
 
 ```bash
 npm run preview
 ```
+
+## Backend API
+
+- Local API base URL: `http://localhost:8787`
+- Data file: `backend/db.json`
+- Main routes:
+	- `GET /api/bootstrap?userId=u-student-1`
+	- `POST /api/events`
+	- `PUT /api/users/:id/interests`
+	- `POST /api/users/:id/rsvps/:eventId/toggle`
+
+## IBM watsonx Chatbot
+
+- The app now embeds an IBM watsonx Orchestrate chat widget at runtime.
+- Loader config lives in `src/services/watsonChat.ts`.
 
 ## Main Routes
 
