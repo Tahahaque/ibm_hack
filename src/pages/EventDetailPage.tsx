@@ -25,7 +25,7 @@ function normalizeDay(day: string) {
 export function EventDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { events, toggleRsvp, isRsvped, scheduleBlocks } = useAppContext()
+  const { events, toggleRsvp, isRsvped, isRsvpPending, scheduleBlocks } = useAppContext()
 
   const event = events.find((item) => item.id === id)
   if (!event) return <p>Event not found.</p>
@@ -36,8 +36,11 @@ export function EventDetailPage() {
   )
 
   const hasConflict = conflictingClasses.length > 0
+  const pending = isRsvpPending(event.id)
 
   const handleRsvpClick = () => {
+    if (pending) return
+
     if (isRsvped(event.id)) {
       toggleRsvp(event.id)
       return
@@ -81,14 +84,12 @@ export function EventDetailPage() {
         <p className="flex items-center gap-2">
           <Users size={14} /> {event.rsvpCount} RSVPs
         </p>
-        {event.orgName ? (
-          <p className="text-xs">
-            Posted by{' '}
-            <Link to={`/org/${event.orgId ?? 'u-org-1'}`} className="text-scarlet underline underline-offset-2">
-              {event.orgName}
-            </Link>
-          </p>
-        ) : null}
+        <p className="text-xs">
+          Organized by{' '}
+          <Link to={`/org/${event.orgId ?? 'u-org-1'}`} className="text-scarlet underline underline-offset-2">
+            {event.orgName ?? 'Campus Society'}
+          </Link>
+        </p>
       </div>
 
       <Card className="mt-4 border-l-4 border-l-scarlet">
@@ -127,8 +128,8 @@ export function EventDetailPage() {
       <p className="mt-4 text-sm text-text-secondary">{event.description}</p>
 
       <div className="fixed bottom-16 left-1/2 w-full max-w-app -translate-x-1/2 bg-white px-4 pb-3 pt-2">
-        <Button className="w-full" variant={isRsvped(event.id) ? 'success' : 'default'} onClick={handleRsvpClick}>
-          {isRsvped(event.id) ? 'RSVP Confirmed' : 'RSVP'}
+        <Button className="w-full" variant={isRsvped(event.id) ? 'success' : 'default'} onClick={handleRsvpClick} disabled={pending}>
+          {pending ? 'Updating...' : isRsvped(event.id) ? 'RSVP Confirmed' : 'RSVP'}
         </Button>
         <p className="mt-1 text-center text-[11px] text-text-secondary">TODO: Firestore transaction for RSVP</p>
       </div>

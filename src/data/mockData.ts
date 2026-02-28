@@ -1,4 +1,4 @@
-import type { EventItem, RecommendationReason, ScheduleBlock, User } from '@/types'
+import type { EventItem, Friend, RecommendationReason, ScheduleBlock, User } from '@/types'
 
 export const INTERESTS = [
   'basketball',
@@ -76,6 +76,37 @@ export const mockRecommendations: RecommendationReason[] = [
   { eventId: 'e1', reasons: ['Matches your social interests', 'You are free 45 minutes before it starts', '3 friends going', 'Trending this week'] },
   { eventId: 'e4', reasons: ['Aligns with your career goals', 'No class conflicts detected', '5 CSE majors attending', 'Popular among tech students'] },
   { eventId: 'e3', reasons: ['Matches your interest in food events', 'Perfect weekend free-time fit', '2 classmates RSVP’d', 'High engagement this week'] },
+]
+
+export const mockFriends: Friend[] = [
+  {
+    id: 'f-1',
+    name: 'Sarah Kim',
+    email: 'kim.8834@osu.edu',
+    eventIds: ['e1', 'e4'],
+    status: 'accepted',
+  },
+  {
+    id: 'f-2',
+    name: 'Marcus Johnson',
+    email: 'johnson.2947@osu.edu',
+    eventIds: ['e2', 'e17', 'e19'],
+    status: 'pending',
+  },
+  {
+    id: 'f-3',
+    name: 'Emily Patel',
+    email: 'patel.1156@osu.edu',
+    eventIds: ['e3', 'e12', 'e18'],
+    status: 'accepted',
+  },
+  {
+    id: 'f-4',
+    name: 'Jordan Lee',
+    email: 'lee.7723@osu.edu',
+    eventIds: ['e21'],
+    status: 'accepted',
+  },
 ]
 
 // TODO: Replace mock events and recommendations with canonical dataset from backend source of truth.

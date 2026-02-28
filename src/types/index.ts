@@ -14,6 +14,14 @@ export type User = {
   verified?: boolean
 }
 
+export type Friend = {
+  id: string
+  name: string
+  email: string
+  eventIds: string[]
+  status?: 'accepted' | 'pending'
+}
+
 export type EventItem = {
   id: string
   title: string

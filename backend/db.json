@@ -127,7 +127,7 @@
       "startTime": "12:00",
       "endTime": "14:00",
       "location": "High Street",
-      "rsvpCount": 83,
+      "rsvpCount": 84,
       "tags": [
         "food",
         "social"
@@ -191,6 +191,7 @@
   "rsvps": {
     "u-student-1": [
       "e21",
+      "e3",
       "e4"
     ]
   }

@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ExternalLink } from 'lucide-react'
+import { ExternalLink, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -64,7 +64,7 @@ function normalizeDay(day: string) {
 }
 
 export function SchedulePage() {
-  const { user, scheduleBlocks, parseSchedule, scheduleParsed, events, isRsvped } = useAppContext()
+  const { user, scheduleBlocks, parseSchedule, removeScheduleBlock, scheduleParsed, events, isRsvped } = useAppContext()
   const [rawInput, setRawInput] = useState('Paste your schedule here...')
   const [view, setView] = useState<'classes' | 'my'>('classes')
 
@@ -214,7 +214,16 @@ export function SchedulePage() {
                           .filter((block) => normalizeDay(block.day) === day)
                           .map((block) => (
                             <div key={block.id} className="rounded-lg border border-red-100 bg-red-50 p-2.5">
-                              <p className="font-medium">{block.name}</p>
+                              <div className="flex items-start justify-between gap-2">
+                                <p className="font-medium">{block.name}</p>
+                                <button
+                                  className="rounded p-0.5 text-text-secondary transition-colors hover:bg-red-100 hover:text-text-primary"
+                                  onClick={() => removeScheduleBlock(block.id)}
+                                  aria-label={`Remove ${block.name}`}
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
                               <p className="mt-1 text-xs text-text-secondary">
                                 {block.start}-{block.end}
                               </p>

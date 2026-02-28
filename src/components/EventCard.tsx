@@ -1,5 +1,5 @@
 import { Flame, MapPin, Users } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
@@ -13,11 +13,24 @@ type EventCardProps = {
 }
 
 export function EventCard({ event, aiReasons, forYou = false }: EventCardProps) {
-  const { toggleRsvp, isRsvped } = useAppContext()
+  const navigate = useNavigate()
+  const { toggleRsvp, isRsvped, isRsvpPending, friendsGoingToEvent } = useAppContext()
   const isTrending = event.rsvpCount > 100
+  const pending = isRsvpPending(event.id)
+  const friendsAttending = friendsGoingToEvent(event.id)
+  const friendLine =
+    friendsAttending.length > 0
+      ? `Friends going: ${friendsAttending
+          .slice(0, 2)
+          .map((friend) => friend.name)
+          .join(', ')}${friendsAttending.length > 2 ? ` +${friendsAttending.length - 2} more` : ''}`
+      : 'No friends going yet'
 
   return (
-    <Card className="transition-all duration-200 md:hover:-translate-y-0.5 md:hover:shadow-md">
+    <Card
+      className="cursor-pointer transition-all duration-200 md:hover:-translate-y-0.5 md:hover:shadow-md"
+      onClick={() => navigate(`/event/${event.id}`)}
+    >
       <CardHeader>
         <div className="mb-2 flex flex-wrap items-center gap-2">
           <Badge className={event.source === 'official' ? 'border-red-100 bg-red-50 text-scarlet' : 'border-gray-200 bg-white text-text-secondary'}>
@@ -30,9 +43,7 @@ export function EventCard({ event, aiReasons, forYou = false }: EventCardProps) 
             </Badge>
           ) : null}
         </div>
-        <Link to={`/event/${event.id}`} className="text-base font-semibold leading-snug text-text-primary hover:text-scarlet">
-          {event.title}
-        </Link>
+        <h3 className="text-base font-semibold leading-snug text-text-primary hover:text-scarlet">{event.title}</h3>
         <p className="text-xs text-text-secondary">
           {event.date} • {event.startTime} - {event.endTime}
         </p>
@@ -45,11 +56,19 @@ export function EventCard({ event, aiReasons, forYou = false }: EventCardProps) 
           <p className="flex items-center gap-2 text-text-secondary">
             <Users size={14} /> {event.rsvpCount} RSVPs
           </p>
-          <p className="text-xs text-text-secondary">3 friends going • 5 CSE majors attending</p>
+          <p className="text-xs text-text-secondary">{friendLine}</p>
         </div>
 
-        <Button className="mt-3 w-full" variant={isRsvped(event.id) ? 'success' : 'default'} onClick={() => toggleRsvp(event.id)}>
-          {isRsvped(event.id) ? 'RSVP Confirmed' : 'RSVP'}
+        <Button
+          className="mt-3 w-full"
+          variant={isRsvped(event.id) ? 'success' : 'default'}
+          disabled={pending}
+          onClick={(eventClick) => {
+            eventClick.stopPropagation()
+            toggleRsvp(event.id)
+          }}
+        >
+          {pending ? 'Updating...' : isRsvped(event.id) ? 'RSVP Confirmed' : 'RSVP'}
         </Button>
 
         {forYou && aiReasons?.length ? (

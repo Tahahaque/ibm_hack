@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { useAppContext } from '@/context/AppContext'
@@ -29,12 +29,20 @@ export function OrgPage() {
       ) : null}
 
       <Card className="p-3">
-        <p className="mb-2 font-semibold">Events</p>
-        <ul className="text-sm text-text-secondary">
-          {orgEvents.map((event) => (
-            <li key={event.id}>• {event.title}</li>
-          ))}
-        </ul>
+        <p className="mb-2 font-semibold">Society Events</p>
+        {orgEvents.length > 0 ? (
+          <ul className="space-y-1 text-sm text-text-secondary">
+            {orgEvents.map((event) => (
+              <li key={event.id}>
+                <Link to={`/event/${event.id}`} className="hover:text-scarlet hover:underline">
+                  {event.title} • {event.date}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-text-secondary">No events posted by this society yet.</p>
+        )}
       </Card>
       <p className="text-xs text-text-secondary">TODO: Fetch org and events from Firestore</p>
     </div>
