@@ -107,13 +107,93 @@
       "startTime": "16:00",
       "endTime": "18:00",
       "location": "Hitchcock Hall",
-      "rsvpCount": 95,
+      "rsvpCount": 94,
       "orgId": "u-org-3",
       "orgName": "Engineering Career Services",
       "tags": [
         "career",
         "networking",
         "technology"
+      ]
+    },
+    {
+      "id": "e26",
+      "title": "Study Skills Power Hour",
+      "description": "Fast workshop on focus strategies before midterms.",
+      "aiSummary": "A practical session with study frameworks and note-taking tactics timed around class schedules.",
+      "category": "academic",
+      "source": "official",
+      "date": "2026-03-06",
+      "startTime": "11:45",
+      "endTime": "12:30",
+      "location": "Thompson Library 102",
+      "rsvpCount": 41,
+      "orgId": "u-org-9",
+      "orgName": "Academic Success Center",
+      "tags": [
+        "academic",
+        "wellness",
+        "career"
+      ]
+    },
+    {
+      "id": "e25",
+      "title": "Women in Data Roundtable",
+      "description": "Career conversation with alumni in analytics and ML.",
+      "aiSummary": "A mentoring roundtable featuring alumni discussing paths into data and AI roles.",
+      "category": "career",
+      "source": "official",
+      "date": "2026-03-05",
+      "startTime": "16:00",
+      "endTime": "17:00",
+      "location": "Caldwell Lab 222",
+      "rsvpCount": 52,
+      "orgId": "u-org-10",
+      "orgName": "Data Science Club",
+      "tags": [
+        "career",
+        "technology",
+        "networking"
+      ]
+    },
+    {
+      "id": "e24",
+      "title": "Applied AI Workshop",
+      "description": "Hands-on mini lab for building a campus recommender.",
+      "aiSummary": "An applied coding workshop where students prototype an AI recommender with peers.",
+      "category": "technology",
+      "source": "official",
+      "date": "2026-03-03",
+      "startTime": "13:30",
+      "endTime": "14:30",
+      "location": "Dreese Labs 280",
+      "rsvpCount": 67,
+      "orgId": "u-org-8",
+      "orgName": "Buckeye Hackers",
+      "tags": [
+        "technology",
+        "innovation",
+        "career"
+      ]
+    },
+    {
+      "id": "e23",
+      "title": "Buckeye Startup Office Hours",
+      "description": "Pitch practice and startup feedback from founders.",
+      "aiSummary": "A mentoring session for student founders focused on rapid pitch feedback and MVP direction.",
+      "category": "innovation",
+      "source": "unofficial",
+      "date": "2026-03-02",
+      "startTime": "09:30",
+      "endTime": "10:20",
+      "location": "Knowlton Hall Studio",
+      "rsvpCount": 38,
+      "orgId": "u-org-11",
+      "orgName": "Startup Buckeyes",
+      "tags": [
+        "innovation",
+        "networking",
+        "career"
       ]
     },
     {
@@ -163,7 +243,7 @@
       "startTime": "18:00",
       "endTime": "20:00",
       "location": "Ohio Union",
-      "rsvpCount": 154,
+      "rsvpCount": 155,
       "orgId": "u-org-1",
       "orgName": "OUAB",
       "tags": [
@@ -191,9 +271,10 @@
   "rsvps": {
     "u-student-1": [
       "e21",
-      "e4",
-      "e3",
-      "e2"
+      "e1",
+      "e24",
+      "e2",
+      "e3"
     ]
   }
 }

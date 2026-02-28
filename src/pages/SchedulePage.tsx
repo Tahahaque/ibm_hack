@@ -7,9 +7,12 @@ import { Textarea } from '@/components/ui/textarea'
 import { useAppContext } from '@/context/AppContext'
 import { LoadingSkeleton } from '@/components/LoadingSkeleton'
 import { askWatsonAboutSchedule } from '@/services/watsonChat'
+import { cn } from '@/lib/utils'
 
 const classDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri']
-const fullWeekDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const DAY_MS = 24 * 60 * 60 * 1000
+
+type CalendarRange = 'date' | 'next-week' | 'next-month'
 
 type MyCalendarEntry = {
   id: string
@@ -55,28 +58,96 @@ function durationMinutes(start: string, end: string) {
   return Math.max(0, timeToMinutes(end) - timeToMinutes(start))
 }
 
-function dateToDay(date: string) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short' })
-}
-
 function normalizeDay(day: string) {
   return day.slice(0, 3)
+}
+
+function formatDateKey(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+function weekdayShort(date: Date) {
+  return date.toLocaleDateString('en-US', { weekday: 'short' })
+}
+
+function dateLabel(date: Date) {
+  return `${weekdayShort(date).toUpperCase()} ${date.getMonth() + 1}/${date.getDate()}`
+}
+
+function toStartOfDay(value: Date) {
+  const date = new Date(value)
+  date.setHours(0, 0, 0, 0)
+  return date
+}
+
+function isDateInRange(dateValue: string, range: CalendarRange, today: Date) {
+  const date = toStartOfDay(new Date(`${dateValue}T00:00:00`))
+  const diffDays = Math.floor((date.getTime() - today.getTime()) / DAY_MS)
+
+  if (range === 'date') return diffDays === 0
+  if (range === 'next-week') return diffDays >= 0 && diffDays < 7
+  return diffDays >= 0 && diffDays < 30
+}
+
+function getRangeDates(range: CalendarRange, today: Date) {
+  if (range === 'date') {
+    return [today]
+  }
+
+  if (range === 'next-week') {
+    return Array.from({ length: 7 }, (_, index) => {
+      const date = new Date(today)
+      date.setDate(today.getDate() + index)
+      return date
+    })
+  }
+
+  const firstOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 1, 1)
+  const lastOfNextMonth = new Date(today.getFullYear(), today.getMonth() + 2, 0)
+  const days = lastOfNextMonth.getDate()
+
+  return Array.from({ length: days }, (_, index) => new Date(firstOfNextMonth.getFullYear(), firstOfNextMonth.getMonth(), index + 1))
+}
+
+function getMonthGridCells(dates: Date[]) {
+  if (!dates.length) return [] as Array<Date | null>
+
+  const first = dates[0]
+  const firstWeekdayIndex = (first.getDay() + 6) % 7
+  const leadingEmpty = Array.from({ length: firstWeekdayIndex }, () => null)
+  const trailingCount = (7 - ((leadingEmpty.length + dates.length) % 7)) % 7
+  const trailingEmpty = Array.from({ length: trailingCount }, () => null)
+
+  return [...leadingEmpty, ...dates, ...trailingEmpty]
 }
 
 export function SchedulePage() {
   const { user, scheduleBlocks, parseSchedule, removeScheduleBlock, scheduleParsed, events, isRsvped } = useAppContext()
   const [rawInput, setRawInput] = useState('Paste your schedule here...')
   const [view, setView] = useState<'classes' | 'my'>('classes')
+  const [range, setRange] = useState<CalendarRange>('next-week')
   const [aiSuggestions, setAiSuggestions] = useState<string[]>([])
   const [aiStatus, setAiStatus] = useState('')
   const [askingAi, setAskingAi] = useState(false)
 
+  const today = toStartOfDay(new Date())
+  const visibleDates = useMemo(() => getRangeDates(range, today), [range, today])
+  const monthCells = range === 'next-month' ? getMonthGridCells(visibleDates) : visibleDates
+  const visibleDateKeys = new Set(visibleDates.map((date) => formatDateKey(date)))
+  const visibleClassDays = classDays.filter((day) => visibleDates.some((date) => weekdayShort(date) === day))
+
+  const filteredScheduleBlocks = scheduleBlocks.filter((block) => visibleClassDays.includes(normalizeDay(block.day)))
+  const filteredRsvpEvents = events.filter((event) => isRsvped(event.id) && visibleDateKeys.has(event.date) && isDateInRange(event.date, range, today))
+
   const classStats = useMemo(() => {
-    const classBlocks = scheduleBlocks.length
+    const classBlocks = filteredScheduleBlocks.length
     const occupiedByDay = classDays.reduce<Record<string, number>>((acc, day) => ({ ...acc, [day]: 0 }), {})
 
     let totalOccupiedMinutes = 0
-    scheduleBlocks.forEach((block) => {
+    filteredScheduleBlocks.forEach((block) => {
       const normalized = normalizeDay(block.day)
       const minutes = durationMinutes(block.start, block.end)
       totalOccupiedMinutes += minutes
@@ -85,7 +156,7 @@ export function SchedulePage() {
       }
     })
 
-    const totalWindowMinutes = 13 * 60 * classDays.length
+    const totalWindowMinutes = 13 * 60 * Math.max(1, visibleClassDays.length)
     const freeHours = Math.max(0, (totalWindowMinutes - totalOccupiedMinutes) / 60)
     const busiestDay = Object.entries(occupiedByDay).sort((a, b) => b[1] - a[1])[0]?.[0] ?? 'N/A'
 
@@ -94,45 +165,46 @@ export function SchedulePage() {
       freeHours,
       busiestDay,
     }
-  }, [scheduleBlocks])
+  }, [filteredScheduleBlocks, visibleClassDays.length])
 
   const myCalendarByDay = useMemo(() => {
-    const grouped = fullWeekDays.reduce<Record<string, MyCalendarEntry[]>>((acc, day) => ({ ...acc, [day]: [] }), {})
+    const grouped = visibleDates.reduce<Record<string, MyCalendarEntry[]>>((acc, date) => ({ ...acc, [formatDateKey(date)]: [] }), {})
 
-    scheduleBlocks.forEach((block) => {
-      const day = normalizeDay(block.day)
-      if (day in grouped) {
-        grouped[day].push({
-          id: block.id,
+    visibleDates.forEach((date) => {
+      const key = formatDateKey(date)
+      const weekday = weekdayShort(date)
+      const dayBlocks = filteredScheduleBlocks
+        .filter((block) => normalizeDay(block.day) === weekday)
+        .map((block) => ({
+          id: `${key}-${block.id}`,
           title: block.name,
           start: block.start,
           end: block.end,
-          type: 'class',
+          type: 'class' as const,
+        }))
+
+      grouped[key] = [...grouped[key], ...dayBlocks]
+    })
+
+    filteredRsvpEvents.forEach((event) => {
+      if (event.date in grouped) {
+        grouped[event.date].push({
+          id: event.id,
+          title: event.title,
+          start: event.startTime,
+          end: event.endTime,
+          type: 'event',
         })
       }
     })
 
-    events
-      .filter((event) => isRsvped(event.id))
-      .forEach((event) => {
-        const day = dateToDay(event.date)
-        if (day in grouped) {
-          grouped[day].push({
-            id: event.id,
-            title: event.title,
-            start: event.startTime,
-            end: event.endTime,
-            type: 'event',
-          })
-        }
-      })
-
-    fullWeekDays.forEach((day) => {
-      grouped[day].sort((first, second) => timeToMinutes(first.start) - timeToMinutes(second.start))
+    visibleDates.forEach((date) => {
+      const key = formatDateKey(date)
+      grouped[key].sort((first, second) => timeToMinutes(first.start) - timeToMinutes(second.start))
     })
 
     return grouped
-  }, [events, isRsvped, scheduleBlocks])
+  }, [filteredRsvpEvents, filteredScheduleBlocks, visibleDates])
 
   const renderCalendarEntry = (entry: MyCalendarEntry) => {
     if (entry.type === 'event') {
@@ -197,6 +269,25 @@ export function SchedulePage() {
         </button>
       </div>
 
+      <div className="grid grid-cols-3 gap-2 rounded-xl border border-borderlight bg-white p-2">
+        {[
+          { key: 'date', label: 'Date' },
+          { key: 'next-week', label: 'Next Week' },
+          { key: 'next-month', label: 'Next Month' },
+        ].map((item) => (
+          <button
+            key={item.key}
+            onClick={() => setRange(item.key as CalendarRange)}
+            className={cn(
+              'rounded-lg px-2 py-2 text-xs font-medium transition-all duration-200 active:scale-95',
+              range === item.key ? 'bg-scarlet text-white shadow-sm' : 'border border-borderlight bg-white text-text-secondary',
+            )}
+          >
+            {item.label}
+          </button>
+        ))}
+      </div>
+
       {!scheduleParsed ? (
         <div className="space-y-2">
           <LoadingSkeleton className="h-16" />
@@ -208,33 +299,45 @@ export function SchedulePage() {
             <Card className="p-4">
               <p className="mb-3 text-base font-semibold text-scarlet">Class Calendar (8AM–9PM)</p>
               <div className="overflow-x-auto">
-                <div className="grid min-w-[900px] grid-cols-5 gap-3 text-sm">
-                  {classDays.map((day) => (
-                    <div key={day} className="rounded-xl border border-borderlight bg-white p-3">
-                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-secondary">{day}</p>
-                      <div className="space-y-2.5">
-                        {scheduleBlocks
-                          .filter((block) => normalizeDay(block.day) === day)
-                          .map((block) => (
-                            <div key={block.id} className="rounded-lg border border-red-100 bg-red-50 p-2.5">
-                              <div className="flex items-start justify-between gap-2">
-                                <p className="font-medium">{block.name}</p>
-                                <button
-                                  className="rounded p-0.5 text-text-secondary transition-colors hover:bg-red-100 hover:text-text-primary"
-                                  onClick={() => removeScheduleBlock(block.id)}
-                                  aria-label={`Remove ${block.name}`}
-                                >
-                                  <X size={14} />
-                                </button>
+                <div className={cn('grid gap-3 text-sm', range === 'date' ? 'min-w-[280px] grid-cols-1' : 'min-w-[1120px] grid-cols-7')}>
+                  {monthCells.map((cell, index) => {
+                    if (!cell) {
+                      return <div key={`empty-class-${index}`} className="rounded-xl border border-dashed border-borderlight bg-white/60 p-3" />
+                    }
+
+                    const key = formatDateKey(cell)
+                    const weekday = weekdayShort(cell)
+                    const blocksForDate = filteredScheduleBlocks.filter((block) => normalizeDay(block.day) === weekday)
+
+                    return (
+                      <div key={key} className="rounded-xl border border-borderlight bg-white p-3">
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-secondary">{dateLabel(cell)}</p>
+                        <div className="space-y-2.5">
+                          {blocksForDate.length ? (
+                            blocksForDate.map((block) => (
+                              <div key={`${key}-${block.id}`} className="rounded-lg border border-red-100 bg-red-50 p-2.5">
+                                <div className="flex items-start justify-between gap-2">
+                                  <p className="font-medium">{block.name}</p>
+                                  <button
+                                    className="rounded p-0.5 text-text-secondary transition-colors hover:bg-red-100 hover:text-text-primary"
+                                    onClick={() => removeScheduleBlock(block.id)}
+                                    aria-label={`Remove ${block.name}`}
+                                  >
+                                    <X size={14} />
+                                  </button>
+                                </div>
+                                <p className="mt-1 text-xs text-text-secondary">
+                                  {block.start}-{block.end}
+                                </p>
                               </div>
-                              <p className="mt-1 text-xs text-text-secondary">
-                                {block.start}-{block.end}
-                              </p>
-                            </div>
-                          ))}
+                            ))
+                          ) : (
+                            <p className="text-xs text-text-secondary">No classes</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
             </Card>
@@ -244,29 +347,38 @@ export function SchedulePage() {
             <Card className="p-4">
               <p className="mb-3 text-base font-semibold text-scarlet">My Calendar (Classes + RSVP Events)</p>
               <div className="overflow-x-auto">
-                <div className="grid min-w-[1120px] grid-cols-7 gap-3 text-sm">
-                  {fullWeekDays.map((day) => (
-                    <div key={day} className="rounded-xl border border-borderlight bg-white p-3">
-                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-secondary">{day}</p>
-                      <div className="space-y-2.5">
-                        {myCalendarByDay[day].length ? (
-                          buildOverlapGroups(myCalendarByDay[day]).map((group, groupIndex) =>
-                            group.length > 1 ? (
-                              <div key={`${day}-overlap-${groupIndex}`} className="grid grid-cols-2 gap-2 rounded-lg border border-red-200 bg-red-50/40 p-2">
-                                {group.map((entry) => (
-                                  <div key={`${entry.type}-${entry.id}`}>{renderCalendarEntry(entry)}</div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div key={`${day}-single-${groupIndex}`}>{renderCalendarEntry(group[0])}</div>
-                            ),
-                          )
-                        ) : (
-                          <p className="text-xs text-text-secondary">No items</p>
-                        )}
+                <div className={cn('grid gap-3 text-sm', range === 'date' ? 'min-w-[280px] grid-cols-1' : 'min-w-[1120px] grid-cols-7')}>
+                  {monthCells.map((cell, index) => {
+                    if (!cell) {
+                      return <div key={`empty-my-${index}`} className="rounded-xl border border-dashed border-borderlight bg-white/60 p-3" />
+                    }
+
+                    const key = formatDateKey(cell)
+                    const entries = myCalendarByDay[key] ?? []
+
+                    return (
+                      <div key={key} className="rounded-xl border border-borderlight bg-white p-3">
+                        <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-secondary">{dateLabel(cell)}</p>
+                        <div className="space-y-2.5">
+                          {entries.length ? (
+                            buildOverlapGroups(entries).map((group, groupIndex) =>
+                              group.length > 1 ? (
+                                <div key={`${key}-overlap-${groupIndex}`} className="grid grid-cols-2 gap-2 rounded-lg border border-red-200 bg-red-50/40 p-2">
+                                  {group.map((entry) => (
+                                    <div key={`${entry.type}-${entry.id}`}>{renderCalendarEntry(entry)}</div>
+                                  ))}
+                                </div>
+                              ) : (
+                                <div key={`${key}-single-${groupIndex}`}>{renderCalendarEntry(group[0])}</div>
+                              ),
+                            )
+                          ) : (
+                            <p className="text-xs text-text-secondary">No items</p>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               </div>
               <p className="mt-3 text-xs text-text-secondary">RSVP an event from the feed/event detail and it appears here automatically.</p>
@@ -309,6 +421,8 @@ export function SchedulePage() {
                 scheduleBlocks,
                 events,
                 isRsvped,
+                selectedRangeLabel: range === 'date' ? 'Date' : range === 'next-week' ? 'Next Week' : 'Next Month',
+                visibleDates: visibleDates.map((date) => formatDateKey(date)),
               })
               setAiSuggestions(result.suggestions)
               if (result.sentToChat) {

@@ -34,6 +34,8 @@ type AskWatsonAboutScheduleInput = {
   scheduleBlocks: ScheduleBlock[]
   events: EventItem[]
   isRsvped: (eventId: string) => boolean
+  selectedRangeLabel?: string
+  visibleDates?: string[]
 }
 
 export type AskWatsonAboutScheduleResult = {
@@ -43,17 +45,74 @@ export type AskWatsonAboutScheduleResult = {
   copiedToClipboard: boolean
 }
 
+const DAY_ORDER = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+
+function normalizeDayLabel(day: string) {
+  const value = day.trim().toLowerCase()
+  const map: Record<string, string> = {
+    mon: 'Mon',
+    monday: 'Mon',
+    tue: 'Tue',
+    tues: 'Tue',
+    tuesday: 'Tue',
+    wed: 'Wed',
+    weds: 'Wed',
+    wednesday: 'Wed',
+    thu: 'Thu',
+    thur: 'Thu',
+    thurs: 'Thu',
+    thursday: 'Thu',
+    fri: 'Fri',
+    friday: 'Fri',
+    sat: 'Sat',
+    saturday: 'Sat',
+    sun: 'Sun',
+    sunday: 'Sun',
+  }
+
+  return map[value] ?? day.slice(0, 3)
+}
+
+function parseLocalDate(dateValue: string) {
+  return new Date(`${dateValue}T00:00:00`)
+}
+
+function weekdayFromDate(dateValue: string) {
+  return parseLocalDate(dateValue).toLocaleDateString('en-US', { weekday: 'short' })
+}
+
+function buildVisibleDateKeys(input: AskWatsonAboutScheduleInput) {
+  if (input.visibleDates?.length) {
+    return new Set(input.visibleDates)
+  }
+
+  return new Set(input.events.map((event) => event.date))
+}
+
+function expandClassBlocksByDate(scheduleBlocks: ScheduleBlock[], visibleDateKeys: Set<string>) {
+  if (!visibleDateKeys.size) return [] as string[]
+
+  const sortedDates = [...visibleDateKeys].sort((a, b) => a.localeCompare(b))
+  const expanded = sortedDates.flatMap((dateKey) => {
+    const weekday = weekdayFromDate(dateKey)
+    return scheduleBlocks
+      .filter((block) => normalizeDayLabel(block.day) === weekday)
+      .map((block) => `${dateKey} (${weekday}) ${block.name} ${block.start}-${block.end}`)
+  })
+
+  return expanded
+}
+
 function dayOrder(day: string) {
-  const normalized = day.slice(0, 3)
-  const order = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
-  return order.indexOf(normalized)
+  const normalized = normalizeDayLabel(day)
+  return DAY_ORDER.indexOf(normalized)
 }
 
 function formatScheduleContext(scheduleBlocks: ScheduleBlock[]) {
   const byDay = new Map<string, ScheduleBlock[]>()
 
   scheduleBlocks.forEach((block) => {
-    const day = block.day.slice(0, 3)
+    const day = normalizeDayLabel(block.day)
     const existing = byDay.get(day) ?? []
     byDay.set(day, [...existing, block])
   })
@@ -92,21 +151,31 @@ function buildSuggestions(scheduleBlocks: ScheduleBlock[], selectedEvents: Event
   return suggestions.slice(0, 4)
 }
 
-function buildAllEventsContext(events: EventItem[]) {
+function buildAllEventsContext(events: EventItem[], visibleDateKeys: Set<string>) {
   if (!events.length) {
     return {
-      summary: 'No events found in All Events Calendar.',
-      lines: [] as string[],
+      inRangeSummary: 'No events found in selected calendar range.',
+      inRangeLines: [] as string[],
+      allSummary: 'No events found in All Events Calendar.',
+      allLines: [] as string[],
     }
   }
 
-  const sorted = [...events].sort((first, second) => {
+  const visible = events.filter((event) => visibleDateKeys.has(event.date))
+
+  const sortedVisible = [...visible].sort((first, second) => {
     const firstKey = `${first.date}T${first.startTime}`
     const secondKey = `${second.date}T${second.startTime}`
     return firstKey.localeCompare(secondKey)
   })
 
-  const bySource = sorted.reduce<Record<string, number>>(
+  const sortedAll = [...events].sort((first, second) => {
+    const firstKey = `${first.date}T${first.startTime}`
+    const secondKey = `${second.date}T${second.startTime}`
+    return firstKey.localeCompare(secondKey)
+  })
+
+  const bySourceVisible = sortedVisible.reduce<Record<string, number>>(
     (acc, event) => ({
       ...acc,
       [event.source]: (acc[event.source] ?? 0) + 1,
@@ -114,17 +183,35 @@ function buildAllEventsContext(events: EventItem[]) {
     {},
   )
 
-  const summary = `All Events Calendar total: ${sorted.length} (official: ${bySource.official ?? 0}, unofficial: ${bySource.unofficial ?? 0})`
-  const lines = sorted
+  const bySourceAll = sortedAll.reduce<Record<string, number>>(
+    (acc, event) => ({
+      ...acc,
+      [event.source]: (acc[event.source] ?? 0) + 1,
+    }),
+    {},
+  )
+
+  const inRangeSummary = `All Events Calendar total in selected range: ${sortedVisible.length} (official: ${bySourceVisible.official ?? 0}, unofficial: ${bySourceVisible.unofficial ?? 0})`
+  const inRangeLines = sortedVisible
     .slice(0, 20)
     .map(
       (event) =>
-        `${event.title} | ${event.date} ${event.startTime}-${event.endTime} | ${event.location} | ${event.category} | ${event.source}`,
+        `${event.title} | ${event.date} (${weekdayFromDate(event.date)}) ${event.startTime}-${event.endTime} | ${event.location} | ${event.category} | ${event.source}`,
+    )
+
+  const allSummary = `All Events Calendar total (full): ${sortedAll.length} (official: ${bySourceAll.official ?? 0}, unofficial: ${bySourceAll.unofficial ?? 0})`
+  const allLines = sortedAll
+    .slice(0, 30)
+    .map(
+      (event) =>
+        `${event.title} | ${event.date} (${weekdayFromDate(event.date)}) ${event.startTime}-${event.endTime} | ${event.location} | ${event.category} | ${event.source}`,
     )
 
   return {
-    summary,
-    lines,
+    inRangeSummary,
+    inRangeLines,
+    allSummary,
+    allLines,
   }
 }
 
@@ -327,21 +414,35 @@ export async function initializeWatsonChat() {
 export async function askWatsonAboutSchedule(input: AskWatsonAboutScheduleInput): Promise<AskWatsonAboutScheduleResult> {
   await initializeWatsonChat()
 
-  const selectedEvents = input.events.filter((event) => input.isRsvped(event.id))
+  const visibleDateKeys = buildVisibleDateKeys(input)
+  const selectedEvents = input.events.filter((event) => input.isRsvped(event.id) && visibleDateKeys.has(event.date))
   const scheduleContext = formatScheduleContext(input.scheduleBlocks)
+  const datedClassContext = expandClassBlocksByDate(input.scheduleBlocks, visibleDateKeys)
   const suggestions = buildSuggestions(input.scheduleBlocks, selectedEvents)
-  const allEventsContext = buildAllEventsContext(input.events)
+  const allEventsContext = buildAllEventsContext(input.events, visibleDateKeys)
 
   const prompt = [
     `Student: ${input.user?.name ?? 'Unknown'}`,
     `Interests: ${(input.user?.interests ?? []).join(', ') || 'None provided'}`,
+    `Today: ${new Date().toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })}`,
+    `Selected calendar range: ${input.selectedRangeLabel ?? 'All visible'}`,
+    `Visible dates: ${[...visibleDateKeys].sort((a, b) => a.localeCompare(b)).join(', ') || 'None'}`,
     `Class blocks: ${input.scheduleBlocks.length}`,
     `Schedule:`,
     scheduleContext,
-    `RSVP events: ${selectedEvents.map((event) => `${event.title} (${event.date} ${event.startTime}-${event.endTime})`).join('; ') || 'None yet'}`,
-    allEventsContext.summary,
-    'All Events Calendar entries (up to 20):',
-    ...allEventsContext.lines,
+    'Class occurrences with explicit dates:',
+    ...(datedClassContext.length ? datedClassContext : ['None in selected range']),
+    `RSVP events: ${
+      selectedEvents
+        .map((event) => `${event.title} (${event.date} ${weekdayFromDate(event.date)} ${event.startTime}-${event.endTime})`)
+        .join('; ') || 'None yet'
+    }`,
+    allEventsContext.inRangeSummary,
+    'All Events Calendar entries for selected range (up to 20):',
+    ...(allEventsContext.inRangeLines.length ? allEventsContext.inRangeLines : ['None in selected range']),
+    allEventsContext.allSummary,
+    'All Events Calendar full entries (up to 30):',
+    ...allEventsContext.allLines,
     'Please suggest the best events/times for me this week, detect conflicts, and propose a balanced plan.',
   ].join('\n')
 
